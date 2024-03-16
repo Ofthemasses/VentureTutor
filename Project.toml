@@ -1,0 +1,7 @@
+name = "VentureTutor"
+uuid = "65edb3c3-2d56-44f4-ae9a-2f3863e85665"
+authors = ["Finlay Metcalfe <<finlaymetcalfe@hotmail.com>>"]
+version = "0.1.0"
+
+[deps]
+ReinforcementLearning = "158674fc-8238-5cab-b5ba-03dfc80d1318"
