@@ -26,3 +26,6 @@ Manifest.toml
 # Ignore vim swp files
 *.swp
 *.swo
+
+# Ignore test files
+test/

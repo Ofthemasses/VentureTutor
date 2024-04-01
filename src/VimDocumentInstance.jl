@@ -25,9 +25,14 @@ function open_vim()
     run(`alacritty --title 'DocInstance' -e vim -S \~/Documents/VentureTutor/src/TranslationLayer.vim`)
 end
 
+function send(env::VimDocumentInstance, str::Char)
+    run(`xdotool type --window $(env.windowID) "$str"`)
+    update_state(env::VimDocumentInstance)
+end
+
 function send(env::VimDocumentInstance, str::String)
     run(`xdotool type --window $(env.windowID) "$str"`)
-    return update_state(env::VimDocumentInstace)
+    update_state(env::VimDocumentInstance)
 end
 
 function update_state(env::VimDocumentInstance)
@@ -35,13 +40,11 @@ function update_state(env::VimDocumentInstance)
         sock = accept(env.server)
         data = readline(sock)
         data_split = split(data, ",")
-        env.line = parse(UInt16, data_split[0])
-        env.row = parse(UInt16, data_split[1])
-        env.col = parse(UInt16, data_split[2])
+        env.line = parse(UInt16, data_split[1])
+        env.row = parse(UInt16, data_split[2])
+        env.col = parse(UInt16, data_split[3])
         close(sock)
     end
-
-    return env
 end
 
 function shutdown_server(server)
