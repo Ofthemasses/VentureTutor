@@ -12,6 +12,7 @@ mutable struct VentureTutorEnv <: AbstractEnv
 end
 
 function VentureTutorEnv()
+
 	incorrect_lines::UInt16 = compare_file_score()
 	view_range::UInt8 = 16
 	inputs::UInt16 = 0
@@ -22,9 +23,7 @@ function VentureTutorEnv()
 end
 
 function RLBase.reset!(env::VentureTutorEnv)
-    send(env.instance, "gg")
-    sleep(5)
-    shutdown_server(env.instance.server)
+    reset(env.instance)
     incorrect_lines::UInt16 = compare_file_score()
     env.min_incorrect_lines = incorrect_lines
     env.incorrect_lines = incorrect_lines
@@ -54,8 +53,7 @@ function _step!(env::VentureTutorEnv, action)
 	env.incorrect_lines = compare_file_score()
     env.inputs += 1
     send(env.instance, Char(action))
-    send(env.instance, Char(27))
-    send(env.instance, ":w\n")
+    # Could be changed to grab buffer
     if (env.incorrect_lines < env.min_incorrect_lines)
         diff = env.min_incorrect_lines - env.incorrect_lines
         env.min_incorrect_lines = env.incorrect_lines
