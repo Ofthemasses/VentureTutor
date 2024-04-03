@@ -12,13 +12,12 @@ mutable struct VentureTutorEnv <: AbstractEnv
 end
 
 function VentureTutorEnv()
-
 	incorrect_lines::UInt16 = compare_file_score()
 	view_range::UInt8 = 16
 	inputs::UInt16 = 0
     documentInstance = VimDocumentInstance()
     # Initialize state
-    update_state(documentInstance)
+    Threads.@spawn run_update_state(documentInstance)
     return VentureTutorEnv(documentInstance, "test2", view_range, inputs, incorrect_lines, incorrect_lines, 0.0)
 end
 
@@ -41,7 +40,7 @@ function RLBase.reward(env::VentureTutorEnv)
     return env.reward
 end 
 
-function (env::VentureTutorEnv)(a::Int)
+function RLBase.act!(env::VentureTutorEnv, a::Int)
     _step!(env, a)
 end
 
@@ -54,25 +53,30 @@ function _step!(env::VentureTutorEnv, action)
     env.inputs += 1
     send(env.instance, Char(action))
     # Could be changed to grab buffer
-    if (env.incorrect_lines < env.min_incorrect_lines)
+    if env.incorrect_lines < env.min_incorrect_lines
         diff = env.min_incorrect_lines - env.incorrect_lines
         env.min_incorrect_lines = env.incorrect_lines
-        env.reward = diff * 100.0 / env.inputs
+        env.reward = diff * 100.0
         env.inputs = 0
-    else
-        env.reward = 0.0
+	else
+		env.reward = env.incorrect_lines - env.min_incorrect_lines
     end
     nothing
 end
 
 RLBase.action_space(env::VentureTutorEnv) = Base.OneTo(128)
-RLBase.state(env::VentureTutorEnv) = (env.instance.line, env.instance.row, env.instance.col)
-RLBase.state_space(env::VentureTutorEnv) = Space((1:65535, 1:65535, 1:65535))
+RLBase.state(env::VentureTutorEnv) = [env.instance.line, env.instance.row, env.instance.col, env.instance.mode]
+function RLBase.state_space(env::VentureTutorEnv) 
+    (typemin(UInt16) .. typemax(UInt16)) × 
+    (typemin(UInt16) .. typemax(UInt16)) × 
+    (typemin(UInt16) .. typemax(UInt16)) × 
+    (typemin(UInt8) .. typemax(UInt8))
+end
 
 function compare_file_score()::UInt16
 	incorrect_lines::UInt16 = 0
-	open("../test/VimEmulator.cpp") do comp_file
-		open("../test/Curr.cpp") do curr_file
+	open("/home/finlay/Documents/VentureTutor/test/VimEmulator.cpp") do comp_file
+		open("/home/finlay/Documents/VentureTutor/test/Curr.cpp") do curr_file
 			comp_line = readline(comp_file, keep=true)
 			curr_line = readline(curr_file, keep=true)
 			
@@ -97,3 +101,47 @@ function compare_file_score()::UInt16
 	end
 	return incorrect_lines
 end
+
+function convert_string_to_tuple_padded(str::String)
+	# Convert string to array of UInt8
+	bytes = Vector{UInt8}(str)
+
+	# Determine the length to fill with zeros (if needed)
+	fillLength = max(0, 100 - length(bytes))
+
+	# Append zeros if the length is less than the maximum length
+	resizedBytes = if fillLength > 0
+		append!(bytes, zeros(UInt8, fillLength))
+	elseif length(bytes) > maxLength
+		# If the byte array is longer than maxLength, truncate it
+		bytes[1:maxLength]
+	else
+		bytes
+	end
+
+	# Convert the array to a tuple
+	return Tuple(resizedBytes)
+end
+
+function compare_viewport(env::VentureTutorEnv)
+    lines = []
+    open("../test/VimEmulator.cpp") do comp_file
+        line = 0
+        comp_line = readline(comp_file, keep=true)
+        while !eof(comp_file)
+            line += 1
+            if env.instance.line > line
+                continue
+            end
+            if line > env.instance.line + 8
+                break
+            end
+            push!(lines, convert_string_to_tuple_padded(comp_line)...)
+        	comp_line = readline(comp_file, keep=true)
+        end
+    end
+	return tuple(lines...)
+end
+
+
+

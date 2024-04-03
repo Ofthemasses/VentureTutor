@@ -7,7 +7,7 @@ mutable struct VimDocumentInstance
     line::UInt16
     row::UInt16
     col::UInt16
-    mode::UInt8
+    mode::Int8
 end
 
 function VimDocumentInstance()
@@ -27,36 +27,29 @@ end
 
 function reset(env::VimDocumentInstance)
     cp("/home/finlay/Documents/VentureTutor/test/Corrupt.cpp","/home/finlay/Documents/VentureTutor/test/Curr.cpp", force=true)
+	send(env, Char(27))
     send(env, ":e! /home/finlay/Documents/VentureTutor/test/Curr.cpp\n")
     send(env, "gg")
-    update_state(env)
 end
 
 function send(env::VimDocumentInstance, str::Char)
     run(`xdotool type --window $(env.windowID) "$str"`)
-    update_state(env::VimDocumentInstance)
 end
 
 function send(env::VimDocumentInstance, str::String)
     run(`xdotool type --window $(env.windowID) "$str"`)
-    update_state(env::VimDocumentInstance)
 end
 
-function update_state(env::VimDocumentInstance)
-    if isopen(env.server)
-        @async begin
-            println("accepting")
-            sock = accept(env.server)
-            println("accepted")
-            println("reading")
-            data = readline(sock)
-            println("read")
-            data_split = split(data, ",")
-            env.line = parse(UInt16, data_split[1])
-            env.row = parse(UInt16, data_split[2])
-            env.col = parse(UInt16, data_split[3])
-            close(sock)
-        end
+function run_update_state(env::VimDocumentInstance)
+    while isopen(env.server)
+        sock = accept(env.server)
+        data = readline(sock)
+        data_split = split(data, ",")
+        env.line = parse(UInt16, data_split[1])
+        env.row = parse(UInt16, data_split[2])
+        env.col = parse(UInt16, data_split[3])
+        env.mode = UInt8(data_split[4][1])
+        close(sock)
     end
 end
 
