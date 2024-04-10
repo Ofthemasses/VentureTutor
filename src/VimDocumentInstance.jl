@@ -22,22 +22,29 @@ function VimDocumentInstance()
 end
 
 function open_vim()
-    run(`alacritty --title 'DocInstance' -e vim -S \~/Documents/VentureTutor/src/TranslationLayer.vim`)
+    run(`alacritty --title 'DocInstance' -e vim --servername DOCINSTANCE -S \~/Documents/VentureTutor/src/TranslationLayer.vim`)
 end
 
 function reset(env::VimDocumentInstance)
-    cp("/home/finlay/Documents/VentureTutor/test/Corrupt.cpp","/home/finlay/Documents/VentureTutor/test/Curr.cpp", force=true)
-	send(env, Char(27))
-    send(env, ":e! /home/finlay/Documents/VentureTutor/test/Curr.cpp\n")
-    send(env, "gg")
+    cp("/home/finlay/Documents/VentureTutor/test/Corrupt.cpp", "/home/finlay/Documents/VentureTutor/test/Curr.cpp", force=true)
+    sleep(1)
+    run(`vim --servername DOCINSTANCE1 --remote-expr "Refresh()"`)
 end
 
 function send(env::VimDocumentInstance, str::Char)
-    run(`xdotool type --window $(env.windowID) "$str"`)
+    run(`vim --servername DOCINSTANCE1 --remote-send "$str"`)
 end
 
 function send(env::VimDocumentInstance, str::String)
-    run(`xdotool type --window $(env.windowID) "$str"`)
+    run(`vim --servername DOCINSTANCE1 --remote-send "$str"`)
+end
+
+function sendNorm(env::VimDocumentInstance, str::Char)
+    run(`vim --servername DOCINSTANCE1 --remote-expr "SendToNormal($str)"`)
+end
+
+function sendNorm(env::VimDocumentInstance, str::String)
+    run(`vim --servername DOCINSTANCE1 --remote-expr "SendToNormal($str)"`)
 end
 
 function run_update_state(env::VimDocumentInstance)
@@ -59,4 +66,3 @@ function shutdown_server(server)
     end
     println("Server shutdown completed.")
 end
-

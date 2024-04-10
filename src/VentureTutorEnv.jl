@@ -8,6 +8,7 @@ mutable struct VentureTutorEnv <: AbstractEnv
 	min_incorrect_lines::UInt16
 	incorrect_lines::UInt16
     reward::Float64
+    document_size::UInt32
 # I shouldn't need two documents    b::VimDocumentInstance
 end
 
@@ -18,11 +19,13 @@ function VentureTutorEnv()
     documentInstance = VimDocumentInstance()
     # Initialize state
     Threads.@spawn run_update_state(documentInstance)
-    return VentureTutorEnv(documentInstance, "test2", view_range, inputs, incorrect_lines, incorrect_lines, 0.0)
+    return VentureTutorEnv(documentInstance, "test2", view_range, inputs, incorrect_lines, incorrect_lines, 0.0, 50)
 end
 
 function RLBase.reset!(env::VentureTutorEnv)
+    println("Beginning Reset")
     reset(env.instance)
+    println("Finished Document Reset")
     incorrect_lines::UInt16 = compare_file_score()
     env.min_incorrect_lines = incorrect_lines
     env.incorrect_lines = incorrect_lines
@@ -32,7 +35,7 @@ function RLBase.reset!(env::VentureTutorEnv)
 end
 
 function RLBase.is_terminated(env::VentureTutorEnv)
-    return env.min_incorrect_lines == 0
+    return env.min_incorrect_lines == 0 || env.inputs > 20
 end
 
 # How this gets called is a little bit of a mystery to me
@@ -45,32 +48,38 @@ function RLBase.act!(env::VentureTutorEnv, a::Int)
 end
 
 function _step!(env::VentureTutorEnv, action)
-    # Ignore z, \, Z, Q, :
-    if action in [122, 92 , 90, 81, 58] 
-        return
-    end
 	env.incorrect_lines = compare_file_score()
     env.inputs += 1
+
+    if action in [122, 92 , 90, 81, 58, 33, 85, 117, 47, 63, 75]
+        return
+    end
     send(env.instance, Char(action))
+    print(Char(action))
     # Could be changed to grab buffer
     if env.incorrect_lines < env.min_incorrect_lines
         diff = env.min_incorrect_lines - env.incorrect_lines
         env.min_incorrect_lines = env.incorrect_lines
-        env.reward = diff * 100.0
+        env.reward = diff * 100.0 / env.inputs
         env.inputs = 0
 	else
-		env.reward = env.incorrect_lines - env.min_incorrect_lines
+		env.reward = env.min_incorrect_lines - env.incorrect_lines
     end
     nothing
 end
 
 RLBase.action_space(env::VentureTutorEnv) = Base.OneTo(128)
-RLBase.state(env::VentureTutorEnv) = [env.instance.line, env.instance.row, env.instance.col, env.instance.mode]
+# 20 character document, sequence of keys
+function RLBase.state(env::VentureTutorEnv)
+	basic_fields = [getfield(env.instance, field) for field in [:row, :col, :mode]]
+	current_readings = codeunits(read_curr(env))
+	target_readings = codeunits(read_target(env))
+	return vcat(basic_fields, current_readings, target_readings)
+end
+
 function RLBase.state_space(env::VentureTutorEnv) 
-    (typemin(UInt16) .. typemax(UInt16)) × 
-    (typemin(UInt16) .. typemax(UInt16)) × 
-    (typemin(UInt16) .. typemax(UInt16)) × 
-    (typemin(UInt8) .. typemax(UInt8))
+    ranges = [typemin(T) .. typemax(T) for T in [UInt16, UInt16, UInt8, fill(UInt8, env.document_size*2)...]]
+	return foldl(×, ranges)
 end
 
 function compare_file_score()::UInt16
@@ -100,6 +109,53 @@ function compare_file_score()::UInt16
 		end
 	end
 	return incorrect_lines
+end
+
+function read_curr(env::VentureTutorEnv)
+	return read_chars_and_fill("/home/finlay/Documents/VentureTutor/test/Curr.cpp", env.instance.row, env.document_size)
+end
+
+function read_target(env::VentureTutorEnv)
+	return read_chars_and_fill("/home/finlay/Documents/VentureTutor/test/VimEmulator.cpp", env.instance.row, env.document_size)
+end
+
+function read_chars_and_fill(file_path::String, start_line::UInt16, num_chars::UInt32)
+	# Open the file in read mode
+	chars_collected = ""
+	open(file_path, "r") do file
+		current_line_num = 1
+
+		# Loop through each line in the file
+		for line in eachline(file)
+			if current_line_num >= start_line
+				# Calculate how many characters we still need to fulfill the requirement
+				chars_needed = num_chars - length(chars_collected)
+				if chars_needed <= 0
+					break
+				end
+
+				actual_chars_to_add = min(chars_needed, length(line))
+				chars_collected *= line[1:actual_chars_to_add]
+
+				# Add newline characters, considering the limit of chars_needed
+				if actual_chars_to_add > 0 && length(chars_collected) < num_chars
+					chars_collected *= "\n"
+				end
+				if length(chars_collected) >= num_chars
+					break
+				end
+			end
+			current_line_num += 1
+		end
+
+		# If we did not collect enough characters, fill with '\0'
+		chars_needed = num_chars - length(chars_collected)
+		if chars_needed > 0
+			chars_collected *= "\0" ^ chars_needed
+		end
+	end
+
+	return chars_collected
 end
 
 function convert_string_to_tuple_padded(str::String)
