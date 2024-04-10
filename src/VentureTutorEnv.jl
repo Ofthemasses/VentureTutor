@@ -51,7 +51,7 @@ function _step!(env::VentureTutorEnv, action)
 	env.incorrect_lines = compare_file_score()
     env.inputs += 1
 
-    if action in [122, 92 , 90, 81, 58, 33, 85, 117, 47, 63, 75]
+    if action in [122, 92 , 90, 81, 58, 33, 85, 117, 47, 63, 75, 0,1,2,3,4,5,6,7,9,10,11,12,14,15,16,18,19,20,21,22,23,24,25,26,28,29,30,31]
         return
     end
     send(env.instance, Char(action))
@@ -62,8 +62,6 @@ function _step!(env::VentureTutorEnv, action)
         env.min_incorrect_lines = env.incorrect_lines
         env.reward = diff * 100.0 / env.inputs
         env.inputs = 0
-	else
-		env.reward = env.min_incorrect_lines - env.incorrect_lines
     end
     nothing
 end
@@ -85,7 +83,7 @@ end
 function compare_file_score()::UInt16
 	incorrect_lines::UInt16 = 0
 	open("/home/finlay/Documents/VentureTutor/test/VimEmulator.cpp") do comp_file
-		open("/home/finlay/Documents/VentureTutor/test/Curr.cpp") do curr_file
+		open("/home/finlay/Documents/VentureTutor/test/output") do curr_file
 			comp_line = readline(comp_file, keep=true)
 			curr_line = readline(curr_file, keep=true)
 			

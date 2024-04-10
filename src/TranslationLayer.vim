@@ -40,7 +40,7 @@ endfunction
 function SendToServer()
     let data_to_send = line("w0") . "," . line(".") . "," . col(".") . "," . mode()
     silent exec "!echo " . shellescape(data_to_send) . " | nc 127.0.0.1 8000 > /dev/null 2>&1"
-    silent write!
+    silent write! /home/finlay/Documents/VentureTutor/test/output
 endfunction
 
 autocmd CursorMoved * call SendToServer()
