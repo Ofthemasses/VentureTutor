@@ -27,23 +27,15 @@ end
 
 function reset(env::VimDocumentInstance)
     cp("/home/finlay/Documents/VentureTutor/test/Corrupt.cpp", "/home/finlay/Documents/VentureTutor/test/output", force=true)
-    run(`vim --servername DOCINSTANCE1 --remote-expr "Refresh()"`)
+    run(`vim --servername DOCINSTANCE --remote-expr "Refresh()"`)
 end
 
 function send(env::VimDocumentInstance, str::Char)
-    run(`vim --servername DOCINSTANCE1 --remote-send "$str"`)
+    run(`vim --servername DOCINSTANCE --remote-send "$str"`)
 end
 
 function send(env::VimDocumentInstance, str::String)
-    run(`vim --servername DOCINSTANCE1 --remote-send "$str"`)
-end
-
-function sendNorm(env::VimDocumentInstance, str::Char)
-    run(`vim --servername DOCINSTANCE1 --remote-expr "SendToNormal($str)"`)
-end
-
-function sendNorm(env::VimDocumentInstance, str::String)
-    run(`vim --servername DOCINSTANCE1 --remote-expr "SendToNormal($str)"`)
+    run(`vim --servername DOCINSTANCE --remote-send "$str"`)
 end
 
 function run_update_state(env::VimDocumentInstance)
