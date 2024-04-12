@@ -62,6 +62,8 @@ function _step!(env::VentureTutorEnv, action)
         env.min_incorrect_lines = env.incorrect_lines
         env.reward = diff * 100.0 / env.inputs
         env.inputs = 0
+    else
+        env.reward = 0
     end
     nothing
 end
@@ -82,8 +84,21 @@ end
 
 function compare_file_score()::UInt16
 	incorrect_lines::UInt16 = 0
+
+    output_filepath = "/home/finlay/Documents/VentureTutor/test/output"
+    MAX_RETRIES = 5
+
+    retries = 0
+    while !isfile(output_filepath)
+        sleep(1)
+        retries += 1
+        if (retries == MAX_RETRIES)
+            error("Hit maximum retries trying to check for output file")
+        end
+    end
+
 	open("/home/finlay/Documents/VentureTutor/test/VimEmulator.cpp") do comp_file
-		open("/home/finlay/Documents/VentureTutor/test/output") do curr_file
+		open(output_filepath) do curr_file
 			comp_line = readline(comp_file, keep=true)
 			curr_line = readline(curr_file, keep=true)
 			

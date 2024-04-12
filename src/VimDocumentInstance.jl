@@ -27,7 +27,6 @@ end
 
 function reset(env::VimDocumentInstance)
     cp("/home/finlay/Documents/VentureTutor/test/Corrupt.cpp", "/home/finlay/Documents/VentureTutor/test/output", force=true)
-    sleep(1)
     run(`vim --servername DOCINSTANCE1 --remote-expr "Refresh()"`)
 end
 
