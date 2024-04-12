@@ -1,19 +1,23 @@
 using VentureTutor
 using ReinforcementLearning
+using Plots
 
 
 env = VentureTutorEnv()  # Ensure this is instantiated properly
 
-# Select a predefined agent
-# For illustration, let's say we are using a DQN-based approach (suitable for environments with high-dimensional state spaces)
-# Note: Make sure to choose an agent that aligns with your environment's state and action spaces
-# This is just an example; the actual instantiation may vary based on the
-# environment and desired agent configuration
+hook = TotalRewardPerEpisode()
 
-# Run the experiment for a specified number of episodes
-run(
+stats = run(
     RandomPolicy(),
     env,
-    StopAfterNEpisodes(100),
-    TotalRewardPerEpisode()
+    StopAfterNEpisodes(1000),
+    hook
 )
+
+@gif for episode in 1:length(hook.rewards)
+    plot(1:episode, hook.rewards[1:episode], title="Reward Progression", xlabel="Episode",
+         ylabel="Cumulative Reward", legend=false)
+end every 10
+
+savefig(plot(hook.rewards, title="Reward Progression", xlabel="Episode", ylabel="Cumulative Reward", legend=false),
+       "final-reward-progression.png")
