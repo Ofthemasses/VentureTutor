@@ -12,9 +12,9 @@
 " :echo mode()
 set noswapfile
 set noconfirm
-edit ~/Documents/VentureTutor/test/Curr.cpp
+edit ~/Documents/VentureTutor/test/output
 
-let g:allowed_file = '/home/finlay/Documents/VentureTutor/test/Curr.cpp'
+let g:allowed_file = '/home/finlay/Documents/VentureTutor/test/output'
 
 autocmd BufRead,BufNewFile * call LockToSingleFile()
 

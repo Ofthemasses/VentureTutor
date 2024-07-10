@@ -1,4 +1,5 @@
 export VimDocumentInstance
+using Random
 
 mutable struct VimDocumentInstance
     document::String
@@ -8,6 +9,7 @@ mutable struct VimDocumentInstance
     row::UInt16
     col::UInt16
     mode::Int8
+    contents::Vector{Char}
 end
 
 function VimDocumentInstance()
@@ -18,7 +20,7 @@ function VimDocumentInstance()
     window_id = chomp(read(get_id_cmd, String))
     server = listen(8000)
     atexit(() -> shutdown_server(server))
-    return VimDocumentInstance("test", window_id, server, 0, 0, 0, 0)
+    return VimDocumentInstance("test", window_id, server, 0, 0, 0, 0, [])
 end
 
 function open_vim()
@@ -26,7 +28,22 @@ function open_vim()
 end
 
 function reset(env::VimDocumentInstance)
-    cp("/home/finlay/Documents/VentureTutor/test/Corrupt.cpp", "/home/finlay/Documents/VentureTutor/test/output", force=true)
+    # In case there are changes to the document, refresh
+    run(`vim --servername DOCINSTANCE --remote-expr "Refresh()"`)
+    # Change this to create a new RANDOM file.
+    env.contents = collect(randstring(' ':'~',50));
+    for i in 1:50
+        if (rand() < 4/50)
+            env.contents[i] = '\n';
+        end
+    end
+    open("/home/finlay/Documents/VentureTutor/test/output", "w") do file
+        for i in env.contents
+            print(file, i)
+        end
+    end
+    # Refresh after document is updated with new value
+    sleep(0.1)
     run(`vim --servername DOCINSTANCE --remote-expr "Refresh()"`)
 end
 
