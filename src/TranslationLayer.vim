@@ -12,6 +12,7 @@
 " :echo mode()
 set noswapfile
 set noconfirm
+set autoread
 edit ~/Documents/VentureTutor/test/output
 
 let g:allowed_file = '/home/finlay/Documents/VentureTutor/test/output'

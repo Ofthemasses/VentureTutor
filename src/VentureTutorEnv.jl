@@ -45,8 +45,6 @@ const VIM_MOVEMENT_ACTIONS = [
     UInt8('+'),
     UInt8('|')
 ]
-
-
 mutable struct VentureTutorEnv <: AbstractEnv 
     instance::VimDocumentInstance
     comp_document::String
@@ -54,7 +52,8 @@ mutable struct VentureTutorEnv <: AbstractEnv
 	inputs::UInt16 # total inputs since last min lines
     reward::Float64
     document_size::UInt32
-	target::UInt16
+	target_row::UInt16
+	target_col::UInt16
 end
 
 function VentureTutorEnv()
@@ -63,21 +62,20 @@ function VentureTutorEnv()
     documentInstance = VimDocumentInstance()
     # Initialize state
     Threads.@spawn run_update_state(documentInstance)
-    return VentureTutorEnv(documentInstance, "test2", view_range, inputs, 0.0, 50, 0)
+    return VentureTutorEnv(documentInstance, "test2", view_range, inputs, 0.0, 50, 0, 0)
 end
 
 function RLBase.reset!(env::VentureTutorEnv)
-    println("Beginning Reset")
-    env.target = rand(1:env.document_size)
+    println(env.instance.contents)
+    env.target_row, env.target_col = get_random_point(env.instance.contents)
     reset(env.instance)
-    println("Finished Document Reset")
     env.inputs = 0
     env.reward = 0.0
     return nothing
 end
 
 function RLBase.is_terminated(env::VentureTutorEnv)
-	return env.reward > 0 || env.inputs == env.target
+	return env.reward > 0 || env.inputs == 10
 end
 
 # How this gets called is a little bit of a mystery to me
@@ -85,7 +83,7 @@ function RLBase.reward(env::VentureTutorEnv)
     return env.reward
 end 
 
-function RLBase.act!(env::VentureTutorEnv, a::Int64)
+function RLBase.act!(env::VentureTutorEnv, a::Int)
     _step!(env, a)
 end
 
@@ -94,24 +92,54 @@ function _step!(env::VentureTutorEnv, action)
     action_char = VIM_MOVEMENT_ACTIONS[action]
     send(env.instance, Char(action_char))
     print(Char(action_char))
-	if env.target == env.instance.col * (env.instance.row + 1)
+	if env.target_row == env.instance.row && env.target_col == env.instance.col
         env.reward = 5 / env.inputs
     end
     nothing
 end
 
-RLBase.action_space(env::VentureTutorEnv) = Base.OneTo(length(VIM_MOVEMENT_ACTIONS))
+RLBase.action_space(env::VentureTutorEnv) = Base.OneTo(128)
 # 20 character document, sequence of keys
 function RLBase.state(env::VentureTutorEnv, ::Observation, ::DefaultPlayer)
 	current_readings = map_string_to_integers(env.instance.contents)
-	return vcat(env.instance.col * (env.instance.row + 1), env.target, current_readings)
+	return vcat(env.instance.col, env.instance.row, env.target_col, env.target_row, current_readings)
 end
 
 function RLBase.state_space(env::VentureTutorEnv) 
-    ranges = [typemin(T) .. typemax(T) for T in [UInt16, UInt16, fill(UInt8, env.document_size)...]]
+    ranges = [typemin(T) .. typemax(T) for T in [UInt16, UInt16, UInt16, UInt16, fill(UInt8, env.document_size)...]]
 	return foldl(×, ranges)
 end
 
+function get_random_point(document_content::Vector{Char})
+    if isempty(document_content)
+        return [0,0]
+    end
+    rows = []
+    current_row = []
+    row_index = 0
+    col_index = 0
+
+    for char in document_content
+        if char == '\n'
+            push!(rows, current_row)
+            current_row = []
+            row_index += 1
+            col_index = 0
+        else
+            push!(current_row, (row_index, col_index))
+            col_index += 1
+        end
+    end
+
+    if !isempty(current_row)
+        push!(rows, current_row)
+    end
+
+    all_points = vcat(rows...)
+
+    rand_point = rand(all_points)
+    return rand_point
+end
 
 function is_word_character(c::Char)
     return isletter(c) || c == '_'
@@ -168,4 +196,3 @@ function map_string_to_integers(s::Vector{Char})
 	end
 	return mapped_integers
 end
-

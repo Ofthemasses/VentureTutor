@@ -1,5 +1,7 @@
 export VimDocumentInstance
 using Random
+using Sockets
+using Base: @timed
 
 mutable struct VimDocumentInstance
     document::String
@@ -30,7 +32,6 @@ end
 function reset(env::VimDocumentInstance)
     # In case there are changes to the document, refresh
     run(`vim --servername DOCINSTANCE --remote-expr "Refresh()"`)
-    # Change this to create a new RANDOM file.
     env.contents = collect(randstring(' ':'~',50));
     for i in 1:50
         if (rand() < 4/50)
@@ -43,16 +44,30 @@ function reset(env::VimDocumentInstance)
         end
     end
     # Refresh after document is updated with new value
-    sleep(0.1)
     run(`vim --servername DOCINSTANCE --remote-expr "Refresh()"`)
 end
 
 function send(env::VimDocumentInstance, str::Char)
-    run(`vim --servername DOCINSTANCE --remote-send "$str"`)
+	timed_send(env, str)
 end
 
 function send(env::VimDocumentInstance, str::String)
-    run(`vim --servername DOCINSTANCE --remote-send "$str"`)
+	timed_send(env, str)
+end
+
+function timed_send(env::VimDocumentInstance, str::Union{Char, String})
+	result = Threads.@spawn begin
+		run(`vim --servername DOCINSTANCE --remote-send "$str"`)
+	end
+	start_time = time()
+	while !Threads.istaskdone(result)
+		if time() - start_time > 5
+			run(`xdotool type --window $(env.windowID) "y"`)
+            println("TEST")
+			break
+		end
+		sleep(0.001)
+	end
 end
 
 function run_update_state(env::VimDocumentInstance)
@@ -72,5 +87,4 @@ function shutdown_server(server)
     if isopen(server)
         close(server)
     end
-    println("Server shutdown completed.")
 end
