@@ -2,156 +2,201 @@ using VentureTutor
 using ReinforcementLearning
 using Flux
 using Plots
+using JLD2
+using Random
+using Statistics
 
-struct CustomTDLearner <: AbstractLearner
+mutable struct CustomTDLearner <: AbstractLearner
 	approximator::FluxApproximator
-	target_approximator::FluxApproximator  # Target network
-	optimizer::Flux.Adam
+	target_approximator::FluxApproximator
 	γ::Float64  # Discount rate
-	update_freq::Int  # Frequency of target network update
-	counter::Int  # Step counter to keep track of updates
+	α::Float64  # Learning rate
+	update_freq::Int 
+	counter::Int
 end
 
-function CustomTDLearner(approximator, optimizer, γ, update_freq)
-	target_approximator = deepcopy(approximator)  # Initialize with same structure
-	CustomTDLearner(approximator, target_approximator, optimizer, γ, update_freq, 0)
+function CustomTDLearner(approximator::FluxApproximator, γ::Float64=0.99, α::Float64=0.01, update_freq::Int=100)
+	target_approximator = deepcopy(approximator)
+	CustomTDLearner(approximator, target_approximator, γ, α, update_freq, 0)
 end
 
-function calculate_q_target(learner::CustomTDLearner, reward,
-next_state_values, is_terminal)
-	if is_terminal
-		return reward
-	else
-		return reward + learner.γ * maximum(next_state_values)
-	end
+reward_factor = 10.0
+function calculate_q_target(learner::CustomTDLearner, reward::Float32, next_state_values::Matrix{Float32}, is_terminal::Bool)
+    scaled_reward = reward * reward_factor
+	return is_terminal ? scaled_reward : scaled_reward + learner.γ * maximum(next_state_values)
 end
 
-function (learner::CustomTDLearner)(state, action, reward, next_state,
-is_terminal)
-	println("Action received in learner: ", action)
-	state = convert(Vector{Float32}, state)  # Convert state to Float32
-	next_state = convert(Vector{Float32}, next_state)  # Convert next_state to Float32
-
+function RLCore.forward(learner::CustomTDLearner, state::AbstractVector{<:Real})
+	state = convert(Vector{Float32}, state)
 	q_values = learner.approximator.model(state)
-	println("Q-values: ", q_values)
-
-	# Ensure action index is within bounds
-	valid_action = clamp(action, 1, length(q_values))
-	q_value = q_values[valid_action]
-
-	next_state_values = learner.target_approximator.model(next_state)  # Use target network
-	q_target = calculate_q_target(learner, reward, next_state_values, is_terminal)
-
-	loss = Flux.mse(q_value, q_target)
-
-	gradients = Flux.gradient(() -> loss, params(learner.approximator.model))
-	Flux.Optimise.update!(learner.optimizer, params(learner.approximator.model), gradients)
-
-	# Update target network
-	learner.counter += 1
-	if learner.counter % learner.update_freq == 0
-		learner.target_approximator = deepcopy(learner.approximator)
-	end
+	return q_values
 end
 
-function RLCore.forward(learner::CustomTDLearner, state::Vector{Float64})
-	state = convert(Vector{Float32}, state)  # Convert state to Float32
-	return learner.approximator.model(state)
-end
-
-function update!(learner::CustomTDLearner, env, state, action, reward,
-next_state, is_terminal)
-	state = convert(Vector{Float32}, state)  # Convert state to Float32
-	next_state = convert(Vector{Float32}, next_state)  # Convert next_state to Float32
-
-	state_values = learner.approximator.model(state)
-	next_state_values = learner.target_approximator.model(next_state)  # Use target network
-	target = calculate_q_target(learner, reward, next_state_values, is_terminal)
-	state_values[clamp(action, 1, length(state_values))] = target
-
-	loss = Flux.mse(state_values[clamp(action, 1, length(state_values))], target)
-	gradients = Flux.gradient(() -> loss, params(learner.approximator.model))
-    Flux.Optimise.update!(learner.optimizer, params(learner.approximator.model), gradients)
-
-	# Update target network
-	learner.counter += 1
-	if learner.counter % learner.update_freq == 0
-		learner.target_approximator = deepcopy(learner.approximator)
-	end
-end
-
-println("Action Space Length: ",
-length(VentureTutor.VIM_MOVEMENT_ACTIONS))
-
-const STATE_LENGTH = 52
+const STATE_LENGTH = 54
 const N_ACTIONS = length(VentureTutor.VIM_MOVEMENT_ACTIONS)
-
-function state_mapping(state::Vector{Any})
-	state_vector = convert(Vector{Float32}, state[3:end]) / 255.0
-	return vcat(convert(Vector{Float32}, state[1:2]), state_vector)
-end
-
-function state_space_mapping(_)
-	;
-end
-
-function action_mapping(action)
-	return action
-end
-
-function action_space_mapping(_)
-	return Base.OneTo(N_ACTIONS)
-end
 
 env = ActionTransformedEnv(
 	StateTransformedEnv(
 		VentureTutorEnv(),
-		state_mapping = state_mapping,
-		state_space_mapping = state_space_mapping
-	);
-	action_mapping = action_mapping,
-	action_space_mapping = action_space_mapping,
+		state_mapping = state -> vcat(convert(Vector{Float32}, state[1:2]), convert(Vector{Float32}, state[3:end]) / 255.0),
+		state_space_mapping = identity
+	),
+	action_mapping = identity,
+	action_space_mapping = _ -> Base.OneTo(N_ACTIONS),
 )
 
-α = 0.01
-update_freq = 100  # Update the target network every 100 steps
+α = 0.001  
+update_freq = 200
 
 nn_approximator = FluxApproximator(
-	model = Chain(
-		Dense(STATE_LENGTH, 64, relu),
-		Dense(64, 64, relu),
-		Dense(64, N_ACTIONS)
+	Chain(
+		Dense(STATE_LENGTH, 64, relu, init=Flux.glorot_uniform),
+		Dense(64, 64, relu, init=Flux.glorot_uniform),
+		Dense(64, N_ACTIONS, init=Flux.glorot_uniform)
 	),
-	optimiser = Flux.ADAM(α)
+	Flux.Adam(α),
+	use_gpu = true
 )
 
 learner = CustomTDLearner(
 	nn_approximator,
-	Flux.ADAM(0.01),
 	0.99,
+	α,
 	update_freq
 )
 
 policy = QBasedPolicy(
 	learner = learner,
-	explorer = EpsilonGreedyExplorer(0.1)
+	explorer = EpsilonGreedyExplorer(
+		kind = :exp,
+		ϵ_init = 1.0,
+		ϵ_stable = 0.02,
+		warmup_steps = 2^11 * 10,
+		decay_steps = 2^13 * 10
+	)
 )
 
-hook = TotalRewardPerEpisode()
+capacity = 50_000
+state = (Float32, STATE_LENGTH)
+action = (Int, N_ACTIONS)
+reward = (Float32, ())
+terminal = (Bool, ())
 
-stats = run(
-	policy,
-	env,
-	StopAfterNEpisodes(2^12),
-	hook
+container = CircularArraySARTSATraces(
+	capacity = capacity,
+	state = state,
+	action = action,
+	reward = reward,
+	terminal = terminal
 )
 
-@gif for episode in 1:length(hook.rewards)
-	plot(1:episode, hook.rewards[1:episode], title="Reward Progression",
-		xlabel="Episode",
-		ylabel="Cumulative Reward", legend=false, ylims=(0, 10))
-end every 10
+function sample_batch(container, batchsize)
+	sample_indicies = rand(1:length(container), batchsize)
+	return [container[i] for i in sample_indicies]
+end
 
-savefig(plot(hook.rewards, title="Reward Progression", xlabel="Episode",
-	ylabel="Cumulative Reward", legend=false),
-	"final-reward-progression.png")
+controller = InsertSampleRatioController()
+
+trajectory = Trajectory(container, Nothing, controller)
+
+agent = Agent(
+	policy = policy,
+	trajectory = trajectory
+)
+
+
+function bellman_update!(learner::CustomTDLearner, state, action, reward, next_state, is_terminal)
+	# Convert states to Float32 column vectors
+	state_col = reshape(state, :, 1)
+	next_state_col = reshape(next_state, :, 1)
+
+	# Use the target approximator to get the Q-values for the next state
+	next_q_values = learner.target_approximator.model(next_state_col)
+	q_target = calculate_q_target(learner, reward, next_q_values, is_terminal)
+
+
+    function loss_fn(m)
+        q_values = m(state_col)
+        q_value = q_values[action]
+        Flux.Losses.mse(q_value, q_target)
+    end
+
+    ps = learner.approximator.model
+    grads = Flux.gradient(m -> loss_fn(m), ps)[1]
+    Flux.Optimise.update!(learner.approximator.optimiser_state, ps, grads)
+
+	learner.counter += 1
+	if learner.counter % learner.update_freq == 0
+		learner.target_approximator = deepcopy(learner.approximator)
+	end
+end
+
+function RLBase.optimise!(agent::RLCore.AbstractAgent, ::PostActStage)
+	policy = agent.policy
+	learner = policy.learner
+
+	trajectory_length = length(agent.trajectory.container)
+	if trajectory_length == 0
+		return
+	end
+
+	batch = sample_batch(agent.trajectory.container, min(64, trajectory_length))
+	for transition in batch
+		state = collect(transition.state)
+		action_array = collect(transition.action)
+		reward = transition.reward
+		next_state = collect(transition.next_state)
+		is_terminal = transition.terminal
+
+		action = action_array[1]
+		bellman_update!(learner, state, action, reward, next_state, is_terminal)
+	end
+
+end
+
+function save_learner(filepath::String, learner::CustomTDLearner)
+	learner_data = (
+		approximator = learner.approximator,
+		target_approximator = learner.target_approximator,
+		γ = learner.γ,
+		α = learner.α,
+		update_freq = learner.update_freq,
+		counter = learner.counter
+	)
+	@save filepath learner_data
+end
+
+function load_learner(filepath::String)
+	@load filepath learner_data
+	CustomTDLearner(learner_data.approximator, learner_data.target_approximator, learner_data.γ, learner_data.α, learner_data.update_freq, learner_data.counter)
+end
+
+total_reward_hook = TotalRewardPerEpisode()
+
+stop_cond = StopAfterNEpisodes(2^14)
+
+run(agent, env, stop_cond, total_reward_hook)
+
+# Plot Total Reward Per Episode
+rewards = total_reward_hook.rewards
+plot(1:length(rewards), rewards, title="Total Reward Per Episode", xlabel="Episode", ylabel="Total Reward", legend=false)
+savefig("total_reward_per_episode.png")
+
+function moving_average(data, window_size)
+	return [mean(data[max(1, i-window_size+1):i]) for i in 1:length(data)]
+end
+
+window_size = 100
+moving_avg_rewards = moving_average(rewards, window_size)
+
+plot(1:length(moving_avg_rewards), moving_avg_rewards, title="Moving Average Total Reward", xlabel="Episode", ylabel="Total Reward (Moving Avg)", legend=false)
+savefig("moving_avg_total_reward.png")
+
+# Save the learner
+model_path = "learner_model.jld2"
+save_learner(model_path, learner)
+
+# Example of loading the learner
+loaded_learner = load_learner(model_path)
+println("LEARNER")
+println(loaded_learner.approximator)

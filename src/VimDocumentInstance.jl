@@ -66,7 +66,7 @@ function timed_send(env::VimDocumentInstance, str::Union{Char, String})
             println("TEST")
 			break
 		end
-		sleep(0.001)
+		sleep(0.0001)
 	end
 end
 

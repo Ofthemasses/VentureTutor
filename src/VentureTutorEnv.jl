@@ -48,8 +48,8 @@ const VIM_MOVEMENT_ACTIONS = [
 mutable struct VentureTutorEnv <: AbstractEnv 
     instance::VimDocumentInstance
     comp_document::String
-    view_range::UInt8 # This should only be a small value, may change to UInt16 if it is to much trouble converting data types in julia
-	inputs::UInt16 # total inputs since last min lines
+    view_range::UInt8 
+	inputs::UInt16 
     reward::Float64
     document_size::UInt32
 	target_row::UInt16
@@ -78,7 +78,6 @@ function RLBase.is_terminated(env::VentureTutorEnv)
 	return env.reward > 0 || env.inputs == 10
 end
 
-# How this gets called is a little bit of a mystery to me
 function RLBase.reward(env::VentureTutorEnv) 
     return env.reward
 end 
