@@ -45,7 +45,7 @@ env = ActionTransformedEnv(
 	action_space_mapping = _ -> Base.OneTo(N_ACTIONS),
 )
 
-α = 0.001  
+α = 0.01  
 update_freq = 200
 
 nn_approximator = FluxApproximator(
@@ -54,13 +54,12 @@ nn_approximator = FluxApproximator(
 		Dense(64, 64, relu, init=Flux.glorot_uniform),
 		Dense(64, N_ACTIONS, init=Flux.glorot_uniform)
 	),
-	Flux.Adam(α),
-	use_gpu = true
+	Flux.Adam(α)
 )
 
 learner = CustomTDLearner(
 	nn_approximator,
-	0.99,
+	0.8,
 	α,
 	update_freq
 )
@@ -71,7 +70,7 @@ policy = QBasedPolicy(
 		kind = :exp,
 		ϵ_init = 1.0,
 		ϵ_stable = 0.02,
-		warmup_steps = 2^11 * 10,
+		warmup_steps = 2^12 * 10,
 		decay_steps = 2^13 * 10
 	)
 )
@@ -173,7 +172,7 @@ end
 
 total_reward_hook = TotalRewardPerEpisode()
 
-stop_cond = StopAfterNEpisodes(2^14)
+stop_cond = StopAfterNEpisodes(2^15)
 
 run(agent, env, stop_cond, total_reward_hook)
 

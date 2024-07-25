@@ -35,16 +35,12 @@ const VIM_MOVEMENT_ACTIONS = [
     UInt8(')'), 
     UInt8('{'),
     UInt8('}'), 
-    UInt8('['), 
-    UInt8(']'),
     UInt8('e'),
     UInt8('E'),
     UInt8('%'),
-    UInt8('-'),
     UInt8('_'),
-    UInt8('+'),
-    UInt8('|')
 ]
+
 mutable struct VentureTutorEnv <: AbstractEnv 
     instance::VimDocumentInstance
     comp_document::String
@@ -66,7 +62,6 @@ function VentureTutorEnv()
 end
 
 function RLBase.reset!(env::VentureTutorEnv)
-    println(env.instance.contents)
     env.target_row, env.target_col = get_random_point(env.instance.contents)
     reset(env.instance)
     env.inputs = 0
@@ -90,18 +85,19 @@ function _step!(env::VentureTutorEnv, action)
     env.inputs += 1
     action_char = VIM_MOVEMENT_ACTIONS[action]
     send(env.instance, Char(action_char))
-    print(Char(action_char))
-	if env.target_row == env.instance.row && env.target_col == env.instance.col
-        env.reward = 5 / env.inputs
+	
+	if env.target_row == env.instance.row - 1&& env.target_col == env.instance.col - 1
+        env.reward = 10 / env.inputs
     end
     nothing
 end
 
-RLBase.action_space(env::VentureTutorEnv) = Base.OneTo(128)
+RLBase.action_space(env::VentureTutorEnv) = Base.OneTo(length(VentureTutor.VIM_MOVEMENT_ACTIONS))
+
 # 20 character document, sequence of keys
 function RLBase.state(env::VentureTutorEnv, ::Observation, ::DefaultPlayer)
 	current_readings = map_string_to_integers(env.instance.contents)
-	return vcat(env.instance.col, env.instance.row, env.target_col, env.target_row, current_readings)
+	return vcat(env.instance.col - 1, env.instance.row - 1, env.target_col, env.target_row, current_readings)
 end
 
 function RLBase.state_space(env::VentureTutorEnv) 
@@ -120,6 +116,7 @@ function get_random_point(document_content::Vector{Char})
 
     for char in document_content
         if char == '\n'
+            row_to_push = isempty(current_row) ? [(row_index,0)] : current_row
             push!(rows, current_row)
             current_row = []
             row_index += 1
@@ -136,7 +133,7 @@ function get_random_point(document_content::Vector{Char})
 
     all_points = vcat(rows...)
 
-    rand_point = rand(all_points)
+    rand_point = rand(all_points[2:end])
     return rand_point
 end
 

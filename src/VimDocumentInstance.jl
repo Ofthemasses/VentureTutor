@@ -56,18 +56,19 @@ function send(env::VimDocumentInstance, str::String)
 end
 
 function timed_send(env::VimDocumentInstance, str::Union{Char, String})
-	result = Threads.@spawn begin
-		run(`vim --servername DOCINSTANCE --remote-send "$str"`)
-	end
-	start_time = time()
-	while !Threads.istaskdone(result)
-		if time() - start_time > 5
-			run(`xdotool type --window $(env.windowID) "y"`)
-            println("TEST")
-			break
-		end
-		sleep(0.0001)
-	end
+	run(`vim --servername DOCINSTANCE --remote-send "$str"`)
+	#result = Threads.@spawn begin
+	#	run(`vim --servername DOCINSTANCE --remote-send "$str"`)
+	#end
+	#start_time = time()
+	#while !Threads.istaskdone(result)
+	#	if time() - start_time > 5
+	#		run(`xdotool type --window $(env.windowID) "y"`)
+    #        println("TEST")
+	#		break
+	#	end
+	#	sleep(0.0001)
+	#end
 end
 
 function run_update_state(env::VimDocumentInstance)
