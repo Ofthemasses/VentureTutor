@@ -43,5 +43,3 @@ function SendToServer()
     silent exec "!echo " . shellescape(data_to_send) . " | nc 127.0.0.1 8000 > /dev/null 2>&1"
     silent write! /home/finlay/Documents/VentureTutor/test/output
 endfunction
-
-autocmd CursorMoved * call SendToServer()
