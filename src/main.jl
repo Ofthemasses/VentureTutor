@@ -5,6 +5,8 @@ using Plots
 using JLD2
 using Random
 using Statistics
+using CUDA
+using cuDNN
 
 mutable struct CustomTDLearner <: AbstractLearner
 	approximator::FluxApproximator
@@ -50,11 +52,12 @@ update_freq = 200
 
 nn_approximator = FluxApproximator(
 	Chain(
-		Dense(STATE_LENGTH, 64, relu, init=Flux.glorot_uniform),
-		Dense(64, 64, relu, init=Flux.glorot_uniform),
-		Dense(64, N_ACTIONS, init=Flux.glorot_uniform)
+		Dense(STATE_LENGTH, 128, relu, init=Flux.glorot_uniform),
+		Dense(128, 128, relu, init=Flux.glorot_uniform),
+		Dense(128, N_ACTIONS, init=Flux.glorot_uniform)
 	),
-	Flux.Adam(α)
+	Flux.Adam(α),
+    use_gpu = true
 )
 
 learner = CustomTDLearner(
@@ -70,8 +73,8 @@ policy = QBasedPolicy(
 		kind = :exp,
 		ϵ_init = 1.0,
 		ϵ_stable = 0.02,
-		warmup_steps = 2^12 * 10,
-		decay_steps = 2^13 * 10
+		warmup_steps = 2^20 * 10,
+		decay_steps = 2^19 * 10
 	)
 )
 
@@ -172,7 +175,7 @@ end
 
 total_reward_hook = TotalRewardPerEpisode()
 
-stop_cond = StopAfterNEpisodes(2^15)
+stop_cond = StopAfterNEpisodes(2^21)
 
 run(agent, env, stop_cond, total_reward_hook)
 

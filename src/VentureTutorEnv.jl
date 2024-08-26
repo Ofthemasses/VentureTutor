@@ -100,7 +100,8 @@ function RLBase.state(env::VentureTutorEnv, ::Observation, ::DefaultPlayer)
 end
 
 function RLBase.state_space(env::VentureTutorEnv) 
-    ranges = [typemin(T) .. typemax(T) for T in [UInt16, UInt16, UInt16, UInt16, fill(UInt8, env.document_size)...]]
+    ranges = vcat(fill(0 .. env.document_size, 4), fill(0 .. 18, env.document_size))
+    println(ranges)
     return foldl(×, ranges)
 end
 
